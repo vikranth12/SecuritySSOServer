@@ -82,13 +82,13 @@ public class SecurityMicroserviceApplicationTests {
 		Long userID = 1234L;
 		UserDetails userDetails = new UserDetails();
 		userDetails.setUserId(userID);
-		userDetails.setEmail("abc@gmail.com");
+		userDetails.setEmail("anilvarma0093@gmail.com");
 		userDetails.setPhone("1234567890");
 		userDetailsRepository.save(userDetails);
 		this.mockMvc.perform(post("/sendOtp").contentType("application/json").content("{\n" +
 				"  \"userId\" : " + userID + ",\n" +
 				"  \"type\" : \"email\"\n" +
-				"}")).andDo(print ()).andExpect(status().isOk()).andExpect(content ().string(Matchers.containsString ("abc@gmail.com")));
+				"}")).andDo(print ()).andExpect(status().isOk()).andExpect(content ().string(Matchers.containsString ("anilvarma0093@gmail.com")));
 	}
 
 }

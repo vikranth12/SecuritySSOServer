@@ -4,8 +4,10 @@ import com.cognibank.securityMicroservice.Model.UserCodes;
 import com.cognibank.securityMicroservice.Model.UserDetails;
 import com.cognibank.securityMicroservice.Repository.UserDetailsRepository;
 import com.cognibank.securityMicroservice.Repository.UserCodesRepository;
+import com.cognibank.securityMicroservice.Service.RabbitSenderService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +25,9 @@ public class MainController {
 
     @Autowired
     private UserDetailsRepository userDetailsRepository;
+
+    @Autowired
+    private RabbitSenderService rabbitSenderService;
 
     @GetMapping("helloWorld")
     public String HelloWorld() {
@@ -120,11 +125,18 @@ public class MainController {
             map.remove("userId");
             map.put("code",otpCode);
 
+
+
             System.out.println(map);
 
             //send to notifications --Rabbit MQ
-
-
+            try {ObjectWriter ow = mapper.writer().withDefaultPrettyPrinter();
+                String requestJson=ow.writeValueAsString(map);
+                System.out.println(requestJson);
+                rabbitSenderService.send(requestJson);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
 
 
         }
