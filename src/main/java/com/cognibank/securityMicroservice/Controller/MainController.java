@@ -1,17 +1,13 @@
 package com.cognibank.securityMicroservice.Controller;
 
 import com.cognibank.securityMicroservice.Model.User;
-import com.cognibank.securityMicroservice.Repository.SecurityRepository;
+import com.cognibank.securityMicroservice.Model.UserDetails;
+import com.cognibank.securityMicroservice.Repository.UserDetailsRepository;
+import com.cognibank.securityMicroservice.Repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
 import javax.servlet.http.HttpServletResponse;
@@ -22,7 +18,10 @@ public class MainController {
 
 
     @Autowired
-    private SecurityRepository securityRepository;
+    private UserRepository userRepository;
+
+    @Autowired
+    private UserDetailsRepository userDetailsRepository;
 
     @GetMapping("helloWorld")
     public String HelloWorld() {
@@ -32,10 +31,11 @@ public class MainController {
 
     //Can
     @PostMapping (path = "userManagement" , consumes = "application/json", produces = "application/json")
-    public User sendDataToUserManagement(@RequestBody User user) {
-        System.out.print("sendDataToUserManagement " + user.getUserName());
-        User mailAndPhone = new User();
-        mailAndPhone.setUserId("123456");
+    public UserDetails sendDataToUserManagement(@RequestBody String user) {
+//        System.out.println("adasdasd");
+       System.out.print("sendDataToUserManagement " + user);
+        UserDetails mailAndPhone = new UserDetails();
+        mailAndPhone.setUserId(123456);
         mailAndPhone.setEmail("anilvarma@gmail.com");
         mailAndPhone.setPhone("+11234567890");
         return mailAndPhone;
@@ -48,41 +48,36 @@ public class MainController {
     }
 
 
+
+
     //Receive data from UI and forward it to UserManagement team and receive email address and phone number and forward email/phone to UI
     @PostMapping(path = "loginUser", consumes = "application/json", produces = "application/json")
-    public Map<String, String> loginUser (@RequestBody User user) {
+    public UserDetails loginUser (@RequestBody String user) {
 
-        //Get Email and phone from User management team
-        System.out.println(user.getUserName());
+        System.out.println(user);
         final String uri = "http://localhost:8080/userManagement";
-        // final String uri = "http://10.61.142.247:8090/checkUserNamePassword";
         RestTemplate restTemplate = new RestTemplate();
-        User userObjFromUserManagement =  restTemplate.postForObject(uri,user,User.class);
-        System.out.println(("LoginUser sending to UM " ) + userObjFromUserManagement);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> request = new HttpEntity<>(user, headers);
+        UserDetails userObjFromUserManagement =  restTemplate.postForObject(uri, request, UserDetails.class);
+        System.out.println(("userObjFromUserManagement sending to UM " ) + userObjFromUserManagement);
+        System.out.println("Data sent to user----> " + maskUserDetails(userObjFromUserManagement).toString());
 
-        // store in redis so that we can compare once we receive from UI team to generate otp
-        securityRepository.save(userObjFromUserManagement);
+        return maskUserDetails(userObjFromUserManagement);
+    }
 
-       // storeDataToRedis(userObjFromUserManagement);
+    public UserDetails maskUserDetails(UserDetails toMaskUserDetails){
 
-        //format email/phone before sending to the UI
-        String emailID = userObjFromUserManagement.getEmail();
+        String emailID = toMaskUserDetails.getEmail();
         String emailIDFormatted = emailID.replace(emailID.substring(3,emailID.indexOf('@')), "XXX");
-        // System.out.println("emailIDFormatted " + emailIDFormatted);
+        toMaskUserDetails.setEmail(emailIDFormatted);
 
-        String phone = userObjFromUserManagement.getPhone();
+        String phone = toMaskUserDetails.getPhone();
         String phoneFormatted = phone.replace(phone.substring(4,9), "XXXXX");
-        // System.out.println("phoneFormatted " + phoneFormatted);
+        toMaskUserDetails.setPhone(phoneFormatted);
 
-        //Map only the required data that is to be sent to the user
-        Map<String,String> dataToUI = new HashMap<String,String>();
-        dataToUI.put("userID", userObjFromUserManagement.getUserId());
-        dataToUI.put("email", emailIDFormatted);
-        dataToUI.put("phone", phoneFormatted);
-
-        System.out.println("Data sent to user----> " + dataToUI.toString());
-
-        return dataToUI;
+        return toMaskUserDetails;
     }
 
 
@@ -92,14 +87,14 @@ public class MainController {
     public String validateUser(@RequestBody User user, HttpServletResponse response){
 
         String message = "User not found";
-        Optional<User> validateThisUser = securityRepository.findById(user.getUserId());
+        Optional<User> validateThisUser = userRepository.findById(user.getUserId());
         System.out.println(validateThisUser);
         if(validateThisUser.isPresent()) {
             if ((user.getOtpCode()).equalsIgnoreCase(validateThisUser.get().getOtpCode())) {
                 String authCode = authCodeGenerator();
                 response.addHeader("Authorization", authCode);
                 validateThisUser.get().setAuthID(authCode);
-                securityRepository.save(validateThisUser.get());
+                userRepository.save(validateThisUser.get());
                 System.out.println("validateThisUser.toString() ----------------------------> " + validateThisUser.toString());
                 message = "User found!!! Hurray!!";
             }

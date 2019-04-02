@@ -1,8 +1,7 @@
 package com.cognibank.securityMicroservice;
 
-import com.cognibank.securityMicroservice.Controller.MainController;
 import com.cognibank.securityMicroservice.Model.User;
-import com.cognibank.securityMicroservice.Repository.SecurityRepository;
+import com.cognibank.securityMicroservice.Repository.UserRepository;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,7 +27,7 @@ public class SecurityMicroserviceApplicationTests {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private SecurityRepository securityRepository;
+	private UserRepository userRepository;
 
 	@Test
 	public void contextLoads() {
@@ -49,6 +48,14 @@ public class SecurityMicroserviceApplicationTests {
 	}
 
 	@Test
+	public void userNameAndPasswordInfo2() throws Exception {
+		this.mockMvc.perform(post("/loginUser2").contentType("application/json").content("{\n" +
+				"  \"userName\" : \"anil\",\n" +
+				"  \"password\" : \"12345\"\n" +
+				"}")).andExpect(status().isOk()).andDo(print ());
+	}
+
+	@Test
 	public void validateUserWithOTPWhenUserIsNotPresent() throws Exception {
 
 		this.mockMvc.perform(post("/validateUserWithOTP").contentType("application/json").content("{\n" +
@@ -64,7 +71,7 @@ public class SecurityMicroserviceApplicationTests {
 		User newUser = new User();
 		newUser.setUserId(userID);
 		newUser.setOtpCode("1234");
-		securityRepository.save(newUser);
+		userRepository.save(newUser);
 		this.mockMvc.perform(post("/validateUserWithOTP").contentType("application/json").content("{\n" +
 				"  \"userId\" : \"" + userID + "\",\n" +
 				"  \"otpCode\" : \"1234\"\n" +
