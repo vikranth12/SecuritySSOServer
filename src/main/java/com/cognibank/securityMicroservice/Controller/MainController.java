@@ -1,11 +1,12 @@
 package com.cognibank.securityMicroservice.Controller;
 
-import com.cognibank.securityMicroservice.Model.User;
+import com.cognibank.securityMicroservice.Model.UserCodes;
 import com.cognibank.securityMicroservice.Model.UserDetails;
 import com.cognibank.securityMicroservice.Repository.UserDetailsRepository;
-import com.cognibank.securityMicroservice.Repository.UserRepository;
+import com.cognibank.securityMicroservice.Repository.UserCodesRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -18,7 +19,7 @@ public class MainController {
 
 
     @Autowired
-    private UserRepository userRepository;
+    private UserCodesRepository userCodesRepository;
 
     @Autowired
     private UserDetailsRepository userDetailsRepository;
@@ -62,11 +63,13 @@ public class MainController {
         HttpEntity<String> request = new HttpEntity<>(user, headers);
         UserDetails userObjFromUserManagement =  restTemplate.postForObject(uri, request, UserDetails.class);
         System.out.println(("userObjFromUserManagement sending to UM " ) + userObjFromUserManagement);
+        userDetailsRepository.save(userObjFromUserManagement);
         System.out.println("Data sent to user----> " + maskUserDetails(userObjFromUserManagement).toString());
 
         return maskUserDetails(userObjFromUserManagement);
     }
 
+    //to mask the data of email and phone
     public UserDetails maskUserDetails(UserDetails toMaskUserDetails){
 
         String emailID = toMaskUserDetails.getEmail();
@@ -80,21 +83,72 @@ public class MainController {
         return toMaskUserDetails;
     }
 
+    //Receive data from UI and forward it to UserManagement team and receive email address and phone number and forward email/phone to UI
+    @PostMapping(path = "sendOtp", consumes = "application/json", produces = "application/json")
+    public Map<String,String> sendOtpToNotification (@RequestBody String notificationDetails) {
+
+        ObjectMapper mapper = new ObjectMapper();
+        String value = "";
+        Map<String, String> map = new HashMap<String, String>();
+
+        try {
+            map = mapper.readValue(notificationDetails, new TypeReference<Map<String, String>>() {
+            });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        Optional<UserDetails> validateThisUser = userDetailsRepository.findById(Long.parseLong(map.get("userId")));
+
+        //if user present, get email/phone
+        if (validateThisUser.isPresent()) {
+
+            String type = map.get("type");
+            //generate OTP
+            String otpCode = generateOTP();
+            if (type.equalsIgnoreCase("email")) {
+                value = validateThisUser.get().getEmail();
+            } else {
+                value = validateThisUser.get().getPhone();
+            }
+
+            userCodesRepository.save(new UserCodes()
+                                            .withUserId(Long.parseLong(map.get("userId")))
+                                            .withCode(otpCode)
+                                            .withType("otp"));
+            map.put(type,value);
+            map.remove("userId");
+            map.put("code",otpCode);
+
+            System.out.println(map);
+
+            //send to notifications --Rabbit MQ
 
 
-    //Recieved OTP from User and returning authID if authenticated
+
+
+        }
+
+
+        return map;
+    }
+
+
+        //Recieved OTP from User and returning authID if authenticated
     @PostMapping(path = "validateUserWithOTP", consumes = "application/json", produces = "application/json")
-    public String validateUser(@RequestBody User user, HttpServletResponse response){
+    public String validateUser(@RequestBody UserCodes userCodes, HttpServletResponse response){
 
         String message = "User not found";
-        Optional<User> validateThisUser = userRepository.findById(user.getUserId());
+        Optional<UserCodes> validateThisUser = userCodesRepository.findById(userCodes.getUserId());
         System.out.println(validateThisUser);
-        if(validateThisUser.isPresent()) {
-            if ((user.getOtpCode()).equalsIgnoreCase(validateThisUser.get().getOtpCode())) {
+        if(validateThisUser.isPresent() && validateThisUser.get().getType().equalsIgnoreCase("otp")) {
+            if ((userCodes.getCode()).equalsIgnoreCase(validateThisUser.get().getCode())) {
                 String authCode = authCodeGenerator();
                 response.addHeader("Authorization", authCode);
-                validateThisUser.get().setAuthID(authCode);
-                userRepository.save(validateThisUser.get());
+                validateThisUser.get().setType("authID");
+                validateThisUser.get().setCode(authCode);
+                userCodesRepository.save(validateThisUser.get());
+                userDetailsRepository.deleteById(validateThisUser.get().getUserId());
                 System.out.println("validateThisUser.toString() ----------------------------> " + validateThisUser.toString());
                 message = "User found!!! Hurray!!";
             }

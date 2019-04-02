@@ -1,7 +1,9 @@
 package com.cognibank.securityMicroservice;
 
-import com.cognibank.securityMicroservice.Model.User;
-import com.cognibank.securityMicroservice.Repository.UserRepository;
+import com.cognibank.securityMicroservice.Model.UserCodes;
+import com.cognibank.securityMicroservice.Model.UserDetails;
+import com.cognibank.securityMicroservice.Repository.UserCodesRepository;
+import com.cognibank.securityMicroservice.Repository.UserDetailsRepository;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,7 +29,10 @@ public class SecurityMicroserviceApplicationTests {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private UserRepository userRepository;
+	private UserCodesRepository userCodesRepository;
+
+	@Autowired
+	private UserDetailsRepository userDetailsRepository;
 
 	@Test
 	public void contextLoads() {
@@ -47,35 +52,43 @@ public class SecurityMicroserviceApplicationTests {
 				"}")).andExpect(status().isOk()).andDo(print ()).andExpect(content ().string(containsString ("aniXXX@gmail.com")));
 	}
 
-	@Test
-	public void userNameAndPasswordInfo2() throws Exception {
-		this.mockMvc.perform(post("/loginUser2").contentType("application/json").content("{\n" +
-				"  \"userName\" : \"anil\",\n" +
-				"  \"password\" : \"12345\"\n" +
-				"}")).andExpect(status().isOk()).andDo(print ());
-	}
 
 	@Test
 	public void validateUserWithOTPWhenUserIsNotPresent() throws Exception {
 
 		this.mockMvc.perform(post("/validateUserWithOTP").contentType("application/json").content("{\n" +
-				"  \"userId\" : \"ABC\",\n" +
-				"  \"otpCode\" : \"1234\"\n" +
+				"  \"userId\" : 123450988,\n" +
+				"  \"code\" : \"1234\"\n" +
 				"}")).andDo(print ()).andExpect(status().isOk()).andExpect(content ().string(Matchers.containsString ("User not found")));
 	}
 
 	@Test
 	public void validateUserWithOTPWhenUserIsPresent() throws Exception {
 
-		String userID = "1234";
-		User newUser = new User();
+		Long userID = 1234L;
+		UserCodes newUser = new UserCodes();
 		newUser.setUserId(userID);
-		newUser.setOtpCode("1234");
-		userRepository.save(newUser);
+		newUser.setCode("1234");
+		newUser.setType("otp");
+		userCodesRepository.save(newUser);
 		this.mockMvc.perform(post("/validateUserWithOTP").contentType("application/json").content("{\n" +
-				"  \"userId\" : \"" + userID + "\",\n" +
-				"  \"otpCode\" : \"1234\"\n" +
+				"  \"userId\" : " + userID + ",\n" +
+				"  \"code\" : \"1234\"\n" +
 				"}")).andDo(print ()).andExpect(status().isOk()).andExpect(content ().string(Matchers.containsString ("User found!!! Hurray!!")));
+	}
+
+	@Test
+	public void sendOtpNotifications() throws Exception{
+		Long userID = 1234L;
+		UserDetails userDetails = new UserDetails();
+		userDetails.setUserId(userID);
+		userDetails.setEmail("abc@gmail.com");
+		userDetails.setPhone("1234567890");
+		userDetailsRepository.save(userDetails);
+		this.mockMvc.perform(post("/sendOtp").contentType("application/json").content("{\n" +
+				"  \"userId\" : " + userID + ",\n" +
+				"  \"type\" : \"email\"\n" +
+				"}")).andDo(print ()).andExpect(status().isOk()).andExpect(content ().string(Matchers.containsString ("abc@gmail.com")));
 	}
 
 }
